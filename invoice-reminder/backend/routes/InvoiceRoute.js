@@ -5,7 +5,7 @@ const User = require('../models/User');
 const Client = require('../models/Client');
 const Invoice = require('../models/Invoice');
 const Reminder = require('../models/Reminder');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/Auth');
 
 const router = express.Router();
 

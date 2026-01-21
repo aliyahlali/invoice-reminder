@@ -3,13 +3,13 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const { startScheduler } = require('./jobs/EmailScheduler');
-app.use('/api/auth', require('./routes/auth'));
+const { startScheduler } = require('./jobs/emailScheduler');
+
 const app = express();
 
 // CORS
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
 }));
 
@@ -29,8 +29,9 @@ mongoose.connect(process.env.MONGO_URI)
   });
 
 // Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/invoices', require('./routes/invoices'));
+app.use('/api/auth', require('./routes/AuthRoute'));
+app.use('/api/invoices', require('./routes/InvoiceRoute'));
+app.use('/api/clients', require('./routes/ClientRoute'));
 app.use('/api/stripe', require('./routes/stripe'));
 
 // Health check
@@ -59,7 +60,7 @@ app.use((err, req, res, next) => {
 startScheduler();
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5002;
 app.listen(PORT, () => {
   console.log(`✓ Server running on port ${PORT}`);
   console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`);
