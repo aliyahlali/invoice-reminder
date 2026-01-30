@@ -4,9 +4,14 @@ import { AuthContext } from '../context/AuthContext';
 import InvoiceCard from '../components/invoices/InvoiceCard';
 import UpgradeModal from '../components/UpgradeModal';
 import api from '../utils/api';
+import { formatReminderDate } from '../utils/formatReminderDate';
 
 const Dashboard = () => {
   const [invoices, setInvoices] = useState([]);
+  const [unpaidCount, setUnpaidCount] = useState(0);
+  const [paidCount, setPaidCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [nextReminderDate, setNextReminderDate] = useState(null);
   const [filter, setFilter] = useState('all');
   const [showUpgrade, setShowUpgrade] = useState(false);
   const { user } = useContext(AuthContext);
@@ -20,14 +25,15 @@ const Dashboard = () => {
     try {
       const params = filter !== 'all' ? { status: filter } : {};
       const { data } = await api.get('/invoices', { params });
-      setInvoices(data);
+      setInvoices(data.invoices || []);
+      setUnpaidCount(data.unpaidCount ?? 0);
+      setPaidCount(data.paidCount ?? 0);
+      setTotalCount(data.totalCount ?? 0);
+      setNextReminderDate(data.nextReminderDate ?? null);
     } catch (error) {
       console.error('Failed to load invoices');
     }
   };
-
-  const unpaidCount = invoices.filter(i => i.status === 'unpaid').length;
-  const paidCount = invoices.filter(i => i.status === 'paid').length;
 
   return (
     <div style={{ padding: '30px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -38,19 +44,28 @@ const Dashboard = () => {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '20px', marginBottom: '30px' }}>
-        <div style={{ flex: 1, padding: '20px', background: '#f5f5f5', borderRadius: '8px' }}>
+      <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 200px', padding: '20px', background: '#f5f5f5', borderRadius: '8px' }}>
           <h3>Unpaid</h3>
           <p style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0' }}>{unpaidCount}</p>
         </div>
-        <div style={{ flex: 1, padding: '20px', background: '#f5f5f5', borderRadius: '8px' }}>
+        <div style={{ flex: '1 1 200px', padding: '20px', background: '#f5f5f5', borderRadius: '8px' }}>
           <h3>Paid</h3>
           <p style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0' }}>{paidCount}</p>
         </div>
-        <div style={{ flex: 1, padding: '20px', background: '#f5f5f5', borderRadius: '8px' }}>
+        <div style={{ flex: '1 1 200px', padding: '20px', background: '#f5f5f5', borderRadius: '8px' }}>
           <h3>Total</h3>
-          <p style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0' }}>{invoices.length}</p>
+          <p style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0' }}>{totalCount}</p>
         </div>
+      </div>
+
+      <div style={{ marginBottom: '24px', padding: '12px 16px', background: '#e8f5e9', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+        <span style={{ fontWeight: 600 }}>
+          Unpaid: {unpaidCount}
+        </span>
+        <span style={{ color: '#2e7d32' }}>
+          Next Reminder: {nextReminderDate ? formatReminderDate(nextReminderDate) : '—'}
+        </span>
       </div>
 
       {user?.plan === 'free' && user.invoiceCount >= 3 && (

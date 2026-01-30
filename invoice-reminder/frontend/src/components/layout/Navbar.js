@@ -21,6 +21,7 @@ const Navbar = () => {
         </Link>
         <Link to="/dashboard" style={{ color: 'white', textDecoration: 'none' }}>Dashboard</Link>
         <Link to="/create-invoice" style={{ color: 'white', textDecoration: 'none' }}>Create Invoice</Link>
+        <Link to="/sent-emails" style={{ color: 'white', textDecoration: 'none' }}>Sent Emails</Link>
       </div>
       <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
         <span style={{ fontSize: '14px' }}>

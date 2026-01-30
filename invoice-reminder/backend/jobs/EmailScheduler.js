@@ -1,203 +1,293 @@
-// jobs/emailScheduler.js
 const cron = require('node-cron');
-const nodemailer = require('nodemailer');
 const Reminder = require('../models/Reminder');
 const Invoice = require('../models/Invoice');
+const Client = require('../models/Client');
 const User = require('../models/User');
+const sendEmail = require('../utils/sendEmail');
+const { getEmailTemplate } = require('../helpers/emailTemplates');
+const { REMINDER_CONFIG, SCHEDULER_CONFIG, EMAIL_CONFIG } = require('../config/reminders');
 
-// Email transporter setup
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  }
-});
+/**
+ * Schedule a single reminder for an invoice
+ * Only creates if not already scheduled/sent
+ */
+async function scheduleReminder(invoice, reminderType) {
+  try {
+    // Check if reminder already exists
+    const existing = await Reminder.findOne({
+      invoiceId: invoice._id,
+      type: reminderType
+    });
 
-// Email templates
-const getEmailTemplate = (type, data) => {
-  const { invoice, client, user, paymentLink } = data;
-  
-  const templates = {
-    before_due: {
-      subject: `Friendly reminder: Invoice ${invoice.invoiceNumber} due soon`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Hi ${client.name},</h2>
-          <p>Just a friendly heads up that your invoice is coming due soon.</p>
-          
-          <div style="background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 8px;">
-            <p style="margin: 5px 0;"><strong>Invoice:</strong> ${invoice.invoiceNumber}</p>
-            <p style="margin: 5px 0;"><strong>Amount:</strong> $${invoice.amount.toFixed(2)}</p>
-            <p style="margin: 5px 0;"><strong>Due Date:</strong> ${new Date(invoice.dueDate).toLocaleDateString()}</p>
-            ${invoice.note ? `<p style="margin: 5px 0;"><strong>Note:</strong> ${invoice.note}</p>` : ''}
-          </div>
-
-          <p>If you've already sent payment, please disregard this reminder.</p>
-          
-          <div style="margin: 30px 0;">
-            <a href="${paymentLink}" style="background: #4CAF50; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">Mark as Paid</a>
-          </div>
-
-          <p>Thanks!<br>${user.name}</p>
-        </div>
-      `
-    },
-    on_due: {
-      subject: `Invoice ${invoice.invoiceNumber} is due today`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Hi ${client.name},</h2>
-          <p>This is a quick reminder that your invoice is due today.</p>
-          
-          <div style="background: #fff3cd; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #ffc107;">
-            <p style="margin: 5px 0;"><strong>Invoice:</strong> ${invoice.invoiceNumber}</p>
-            <p style="margin: 5px 0;"><strong>Amount:</strong> $${invoice.amount.toFixed(2)}</p>
-            <p style="margin: 5px 0;"><strong>Due Date:</strong> Today</p>
-            ${invoice.note ? `<p style="margin: 5px 0;"><strong>Note:</strong> ${invoice.note}</p>` : ''}
-          </div>
-
-          <p>If you've already sent payment, thank you! You can mark it as paid using the button below.</p>
-          
-          <div style="margin: 30px 0;">
-            <a href="${paymentLink}" style="background: #4CAF50; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">Mark as Paid</a>
-          </div>
-
-          <p>Best regards,<br>${user.name}</p>
-        </div>
-      `
-    },
-    after_due: {
-      subject: `Follow-up: Invoice ${invoice.invoiceNumber} is past due`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Hi ${client.name},</h2>
-          <p>I wanted to follow up regarding the invoice below, which is now past its due date.</p>
-          
-          <div style="background: #f8d7da; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #dc3545;">
-            <p style="margin: 5px 0;"><strong>Invoice:</strong> ${invoice.invoiceNumber}</p>
-            <p style="margin: 5px 0;"><strong>Amount:</strong> $${invoice.amount.toFixed(2)}</p>
-            <p style="margin: 5px 0;"><strong>Due Date:</strong> ${new Date(invoice.dueDate).toLocaleDateString()}</p>
-            ${invoice.note ? `<p style="margin: 5px 0;"><strong>Note:</strong> ${invoice.note}</p>` : ''}
-          </div>
-
-          <p>If you've already sent payment, please let me know or mark it as paid below. If you have any questions or need to discuss payment arrangements, feel free to reach out.</p>
-          
-          <div style="margin: 30px 0;">
-            <a href="${paymentLink}" style="background: #4CAF50; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">Mark as Paid</a>
-          </div>
-
-          <p>Thanks for your attention to this matter.<br>${user.name}</p>
-        </div>
-      `
+    if (existing) {
+      return existing;
     }
-  };
 
-  return templates[type];
-};
+    // Calculate scheduled date based on reminder type
+    const dueDate = new Date(invoice.dueDate);
+    const config = REMINDER_CONFIG[reminderType];
+    
+    if (!config) {
+      throw new Error(`Unknown reminder type: ${reminderType}`);
+    }
 
-// Send reminder email
-const sendReminderEmail = async (reminder) => {
+    const scheduledDate = new Date(dueDate);
+    scheduledDate.setDate(scheduledDate.getDate() + config.days);
+
+    const reminder = new Reminder({
+      userId: invoice.userId,
+      invoiceId: invoice._id,
+      clientEmail: invoice.clientId?.email || '',
+      invoiceNumber: invoice.invoiceNumber,
+      amount: invoice.amount,
+      dueDate: invoice.dueDate,
+      invoiceStatus: invoice.status,
+      scheduledDate,
+      type: reminderType,
+      status: 'pending'
+    });
+
+    await reminder.save();
+    console.log(`✓ Scheduled ${config.label} reminder for invoice ${invoice.invoiceNumber}`);
+    return reminder;
+  } catch (error) {
+    console.error(`Error scheduling reminder: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Create all reminders for a new unpaid invoice
+ */
+async function createRemindersForInvoice(invoice) {
+  try {
+    if (invoice.status !== 'unpaid') {
+      console.log(`Invoice ${invoice.invoiceNumber} is not unpaid, skipping reminder creation`);
+      return;
+    }
+
+    console.log(`Creating reminders for invoice ${invoice.invoiceNumber}...`);
+    
+    await scheduleReminder(invoice, 'before_due');
+    await scheduleReminder(invoice, 'on_due');
+    await scheduleReminder(invoice, 'after_due');
+  } catch (error) {
+    console.error(`Error creating reminders for invoice ${invoice.invoiceNumber}:`, error);
+  }
+}
+
+/**
+ * Send pending reminders that are due now
+ * Checks if invoice is still unpaid before sending
+ */
+async function sendPendingReminders() {
+  try {
+    const now = new Date();
+
+    // Find all pending reminders where scheduledDate <= now
+    const pendingReminders = await Reminder.find({
+      status: 'pending',
+      scheduledDate: { $lte: now }
+    })
+      .populate('invoiceId')
+      .lean();
+
+    if (pendingReminders.length === 0) {
+      console.log(`[${now.toISOString()}] No pending reminders to send`);
+      return;
+    }
+
+    console.log(`[${now.toISOString()}] Found ${pendingReminders.length} pending reminders to process`);
+
+    for (const reminder of pendingReminders) {
+      await processSingleReminder(reminder);
+    }
+  } catch (error) {
+    console.error('Error sending pending reminders:', error);
+  }
+}
+
+/**
+ * Process and send a single reminder
+ * Checks if invoice is still unpaid before sending
+ */
+async function processSingleReminder(reminder) {
   try {
     const invoice = await Invoice.findById(reminder.invoiceId)
       .populate('clientId')
       .populate('userId');
 
-    if (!invoice || invoice.status === 'paid') {
-      await Reminder.findByIdAndUpdate(reminder._id, { 
-        status: 'cancelled' 
-      });
+    if (!invoice) {
+      console.log(`Invoice ${reminder.invoiceId} not found, cancelling reminder`);
+      await Reminder.updateOne(
+        { _id: reminder._id },
+        { status: 'cancelled' }
+      );
       return;
     }
 
-    const client = invoice.clientId;
-    const user = invoice.userId;
-    const paymentLink = `${process.env.FRONTEND_URL}/pay/${invoice.paymentToken}`;
-
-    const template = getEmailTemplate(reminder.type, {
-      invoice,
-      client,
-      user,
-      paymentLink
-    });
-
-    await transporter.sendMail({
-      from: `${user.name} <${process.env.SMTP_FROM_EMAIL}>`,
-      to: client.email,
-      subject: template.subject,
-      html: template.html
-    });
-
-    await Reminder.findByIdAndUpdate(reminder._id, {
-      status: 'sent',
-      sentDate: new Date()
-    });
-
-    console.log(`✓ Sent ${reminder.type} reminder for invoice ${invoice.invoiceNumber}`);
-  } catch (error) {
-    console.error(`✗ Failed to send reminder ${reminder._id}:`, error.message);
-    
-    await Reminder.findByIdAndUpdate(reminder._id, {
-      status: 'failed',
-      failureReason: error.message,
-      $inc: { retryCount: 1 }
-    });
-  }
-};
-
-// Process pending reminders
-const processReminders = async () => {
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const pendingReminders = await Reminder.find({
-      status: 'pending',
-      scheduledDate: { $gte: today, $lt: tomorrow }
-    });
-
-    console.log(`\n[${new Date().toISOString()}] Processing ${pendingReminders.length} reminders...`);
-
-    for (const reminder of pendingReminders) {
-      await sendReminderEmail(reminder);
+    // CRITICAL: Check if invoice is paid - if so, don't send and cancel remaining reminders
+    if (invoice.status === 'paid') {
+      console.log(`✓ Invoice ${invoice.invoiceNumber} is paid, cancelling all reminders`);
+      await Reminder.updateMany(
+        { invoiceId: invoice._id, status: 'pending' },
+        { status: 'cancelled' }
+      );
+      return;
     }
 
-    // Retry failed reminders (max 3 attempts)
-    const failedReminders = await Reminder.find({
-      status: 'failed',
-      retryCount: { $lt: 3 },
-      scheduledDate: { $lte: today }
-    }).limit(10);
+    // Build email data
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const paymentLink = invoice.paymentToken
+      ? `${baseUrl}/pay/${invoice.paymentToken}`
+      : null;
 
-    if (failedReminders.length > 0) {
-      console.log(`\nRetrying ${failedReminders.length} failed reminders...`);
-      for (const reminder of failedReminders) {
-        await sendReminderEmail(reminder);
+    const emailData = {
+      invoice,
+      client: invoice.clientId,
+      user: invoice.userId,
+      paymentLink
+    };
+
+    const template = getEmailTemplate(reminder.type, emailData);
+
+    if (!template) {
+      console.error(`No email template found for type: ${reminder.type}`);
+      await Reminder.updateOne(
+        { _id: reminder._id },
+        {
+          status: 'failed',
+          failureReason: 'No email template'
+        }
+      );
+      return;
+    }
+
+    // Send the email
+    const sendResult = EMAIL_CONFIG.sendEmails
+      ? await sendEmail({
+          to: invoice.clientId.email,
+          subject: template.subject,
+          html: template.html
+        })
+      : { success: true, messageId: 'test-mode' };
+
+    if (sendResult.success) {
+      await Reminder.updateOne(
+        { _id: reminder._id },
+        {
+          status: 'sent',
+          sentDate: new Date(),
+          remindersSent: [...(reminder.remindersSent || []), reminder.type.split('_')[0]]
+        }
+      );
+
+      if (EMAIL_CONFIG.sendEmails) {
+        console.log(`✓ Sent ${reminder.type} reminder to ${invoice.clientId.email} for invoice ${invoice.invoiceNumber}`);
+      } else {
+        console.log(`[TEST MODE] Would send ${reminder.type} reminder to ${invoice.clientId.email} for invoice ${invoice.invoiceNumber}`);
+      }
+    } else {
+      const failureReason = sendResult.error || 'Unknown error';
+      const retryCount = (reminder.retryCount || 0) + 1;
+
+      // Retry up to MAXRETRIES times
+      if (retryCount < SCHEDULER_CONFIG.maxRetries) {
+        await Reminder.updateOne(
+          { _id: reminder._id },
+          {
+            failureReason,
+            retryCount
+          }
+        );
+        console.warn(`⚠ Failed to send reminder (attempt ${retryCount}/${SCHEDULER_CONFIG.maxRetries}): ${failureReason}`);
+      } else {
+        await Reminder.updateOne(
+          { _id: reminder._id },
+          {
+            status: 'failed',
+            failureReason: `Failed after ${SCHEDULER_CONFIG.maxRetries} attempts: ${failureReason}`,
+            retryCount
+          }
+        );
+        console.error(`✗ Failed to send reminder after ${SCHEDULER_CONFIG.maxRetries} attempts: ${failureReason}`);
       }
     }
-
-    console.log('✓ Reminder processing complete\n');
   } catch (error) {
-    console.error('✗ Error processing reminders:', error);
+    console.error(`Error processing reminder ${reminder._id}:`, error);
+    await Reminder.updateOne(
+      { _id: reminder._id },
+      {
+        status: 'failed',
+        failureReason: error.message
+      }
+    );
   }
-};
+}
 
-// Schedule job to run daily at 9 AM
-const startScheduler = () => {
-  // Run every day at 9:00 AM
-  cron.schedule('0 9 * * *', processReminders, {
-    timezone: 'America/New_York'
+/**
+ * Cancel all pending reminders for a paid invoice
+ * Called when invoice status changes to 'paid'
+ */
+async function cancelRemindersForInvoice(invoiceId) {
+  try {
+    const result = await Reminder.updateMany(
+      { invoiceId, status: 'pending' },
+      { status: 'cancelled' }
+    );
+
+    if (result.modifiedCount > 0) {
+      console.log(`✓ Cancelled ${result.modifiedCount} pending reminders for invoice ${invoiceId}`);
+    }
+  } catch (error) {
+    console.error(`Error cancelling reminders for invoice ${invoiceId}:`, error);
+  }
+}
+
+/**
+ * Start the reminder scheduler
+ * Runs every 5 minutes to check for reminders to send
+ */
+function startScheduler() {
+  if (!SCHEDULER_CONFIG.enabled) {
+    console.log('⚠ Email Reminder Scheduler is disabled');
+    return null;
+  }
+
+  console.log('Starting Email Reminder Scheduler...');
+
+  // Run on schedule defined in config: 0, 5, 10, 15, ...
+  const task = cron.schedule(SCHEDULER_CONFIG.checkInterval, async () => {
+    console.log(`[${new Date().toISOString()}] Running reminder scheduler...`);
+    await sendPendingReminders();
   });
 
-  console.log('✓ Email scheduler started (runs daily at 9 AM)');
-  
-  // Optional: Run immediately on startup for testing
-  // processReminders();
-};
+  console.log(`✓ Scheduler started (runs every 5 minutes on interval: ${SCHEDULER_CONFIG.checkInterval})`);
 
-module.exports = { startScheduler, processReminders };
+  // For testing: run immediately on startup
+  console.log('Running initial reminder check...');
+  sendPendingReminders().catch(console.error);
+
+  return task;
+}
+
+/**
+ * Stop the scheduler (useful for testing/graceful shutdown)
+ */
+function stopScheduler(task) {
+  if (task) {
+    task.stop();
+    console.log('✓ Scheduler stopped');
+  }
+}
+
+module.exports = {
+  startScheduler,
+  stopScheduler,
+  createRemindersForInvoice,
+  cancelRemindersForInvoice,
+  scheduleReminder,
+  processSingleReminder,
+  sendPendingReminders,
+  REMINDER_CONFIG
+};

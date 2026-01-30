@@ -1,4 +1,3 @@
-// routes/invoices.js
 const express = require('express');
 const crypto = require('crypto');
 const User = require('../models/User');
@@ -6,6 +5,8 @@ const Client = require('../models/Client');
 const Invoice = require('../models/Invoice');
 const Reminder = require('../models/Reminder');
 const auth = require('../middleware/Auth');
+const { getEarliestPendingReminder } = require('../helpers/reminders');
+const { createRemindersForInvoice, cancelRemindersForInvoice } = require('../jobs/EmailScheduler');
 
 const router = express.Router();
 
@@ -56,27 +57,8 @@ router.post('/', auth, async (req, res) => {
 
     await invoice.save();
 
-    // Create reminder schedule
-    const dueDateObj = new Date(dueDate);
-    const reminders = [
-      {
-        invoiceId: invoice._id,
-        scheduledDate: new Date(dueDateObj.getTime() - 3 * 24 * 60 * 60 * 1000), // 3 days before
-        type: 'before_due'
-      },
-      {
-        invoiceId: invoice._id,
-        scheduledDate: dueDateObj, // On due date
-        type: 'on_due'
-      },
-      {
-        invoiceId: invoice._id,
-        scheduledDate: new Date(dueDateObj.getTime() + 3 * 24 * 60 * 60 * 1000), // 3 days after
-        type: 'after_due'
-      }
-    ];
-
-    await Reminder.insertMany(reminders);
+    // Create reminder schedule via EmailScheduler
+    await createRemindersForInvoice(invoice);
 
     // Update invoice count
     await User.findByIdAndUpdate(req.user._id, { 
@@ -93,27 +75,72 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// Get all invoices
+// Get all invoices (with reminder stats for dashboard / list)
 router.get('/', auth, async (req, res) => {
   try {
     const { status } = req.query;
     const filter = { userId: req.user._id };
-    
-    if (status) {
-      filter.status = status;
-    }
+    if (status) filter.status = status;
 
-    const invoices = await Invoice.find(filter)
-      .populate('clientId', 'name email')
-      .sort({ createdAt: -1 });
+    const [invoices, stats] = await Promise.all([
+      Invoice.find(filter).populate('clientId', 'name email').sort({ createdAt: -1 }).lean(),
+      getEarliestPendingReminder({ userId: req.user._id })
+    ]);
 
-    res.json(invoices);
+    const [unpaidCount, paidCount, totalCount] = await Promise.all([
+      Invoice.countDocuments({ userId: req.user._id, status: 'unpaid' }),
+      Invoice.countDocuments({ userId: req.user._id, status: 'paid' }),
+      Invoice.countDocuments({ userId: req.user._id })
+    ]);
+    const byInvoice = stats.byInvoice || {};
+
+    invoices.forEach((inv) => {
+      inv.nextReminder = byInvoice[String(inv._id)] || null;
+    });
+
+    res.json({
+      invoices,
+      unpaidCount,
+      paidCount,
+      totalCount,
+      nextReminderDate: stats.date
+    });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Get single invoice
+// Public payment confirmation (magic link) – must be before /:id
+router.get('/pay/:token', async (req, res) => {
+  try {
+    const invoice = await Invoice.findOne({
+      paymentToken: req.params.token
+    }).populate('clientId', 'name email');
+
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invalid payment link' });
+    }
+
+    if (invoice.status === 'paid') {
+      return res.json({ message: 'Invoice already marked as paid', invoice });
+    }
+
+    invoice.status = 'paid';
+    invoice.paidAt = new Date();
+    await invoice.save();
+
+    // Cancel pending reminders
+    await cancelRemindersForInvoice(invoice._id);
+
+    res.json({ message: 'Payment confirmed successfully', invoice });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get single invoice (with next reminder for detail page)
 router.get('/:id', auth, async (req, res) => {
   try {
     const invoice = await Invoice.findOne({
@@ -125,10 +152,14 @@ router.get('/:id', auth, async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    const reminders = await Reminder.find({ invoiceId: invoice._id });
+    const [reminders, { date: nextReminder }] = await Promise.all([
+      Reminder.find({ invoiceId: invoice._id }),
+      getEarliestPendingReminder({ userId: req.user._id, invoiceId: invoice._id })
+    ]);
 
-    res.json({ invoice, reminders });
+    res.json({ invoice, reminders, nextReminder });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -154,49 +185,9 @@ router.patch('/:id/mark-paid', auth, async (req, res) => {
     await invoice.save();
 
     // Cancel pending reminders
-    await Reminder.updateMany(
-      { invoiceId: invoice._id, status: 'pending' },
-      { status: 'cancelled' }
-    );
+    await cancelRemindersForInvoice(invoice._id);
 
     res.json(invoice);
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Public payment confirmation (magic link)
-router.get('/pay/:token', async (req, res) => {
-  try {
-    const invoice = await Invoice.findOne({ 
-      paymentToken: req.params.token 
-    }).populate('clientId', 'name email');
-
-    if (!invoice) {
-      return res.status(404).json({ error: 'Invalid payment link' });
-    }
-
-    if (invoice.status === 'paid') {
-      return res.json({ 
-        message: 'Invoice already marked as paid',
-        invoice 
-      });
-    }
-
-    invoice.status = 'paid';
-    invoice.paidAt = new Date();
-    await invoice.save();
-
-    // Cancel pending reminders
-    await Reminder.updateMany(
-      { invoiceId: invoice._id, status: 'pending' },
-      { status: 'cancelled' }
-    );
-
-    res.json({ 
-      message: 'Payment confirmed successfully',
-      invoice 
-    });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }

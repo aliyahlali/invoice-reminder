@@ -21,22 +21,47 @@ export const AuthProvider = ({ children }) => {
       const { data } = await api.get('/auth/me');
       setUser(data.user);
     } catch (error) {
-      localStorage.removeItem('token');
+      // Only remove token if it's an auth error, not a network error
+      if (error.response && error.response.status === 401) {
+        localStorage.removeItem('token');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const login = async (email, password) => {
-    const { data } = await api.post('/auth/login', { email, password });
-    localStorage.setItem('token', data.token);
-    setUser(data.user);
+    try {
+      const { data } = await api.post('/auth/login', { email, password });
+      localStorage.setItem('token', data.token);
+      setUser(data.user);
+    } catch (error) {
+      // Handle network errors specifically
+      if (!error.response) {
+        const networkError = error.message || 'Cannot connect to server. Please make sure the backend is running.';
+        throw new Error(networkError);
+      }
+      // Re-throw with more context for API errors
+      const errorMessage = error.response?.data?.error || error.message || 'Login failed';
+      throw new Error(errorMessage);
+    }
   };
 
   const register = async (name, email, password) => {
-    const { data } = await api.post('/auth/register', { name, email, password });
-    localStorage.setItem('token', data.token);
-    setUser(data.user);
+    try {
+      const { data } = await api.post('/auth/register', { name, email, password });
+      localStorage.setItem('token', data.token);
+      setUser(data.user);
+    } catch (error) {
+      // Handle network errors specifically
+      if (!error.response) {
+        const networkError = error.message || 'Cannot connect to server. Please make sure the backend is running.';
+        throw new Error(networkError);
+      }
+      // Re-throw with more context for API errors
+      const errorMessage = error.response?.data?.error || error.message || 'Registration failed';
+      throw new Error(errorMessage);
+    }
   };
 
   const logout = () => {

@@ -12,11 +12,21 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(''); // Clear previous errors
     try {
       await register(name, email, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || 'Registration failed');
+      // Handle different error types - prioritize error.message for network errors
+      const errorMessage = err.message || err.response?.data?.error || 'Registration failed. Please check your connection and try again.';
+      setError(errorMessage);
+      console.error('Registration error:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        code: err.code,
+        config: { url: err.config?.url, baseURL: err.config?.baseURL }
+      });
     }
   };
 

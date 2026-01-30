@@ -15,6 +15,17 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'All fields required' });
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
     const exists = await User.findOne({ email });
     if (exists) {
       return res.status(400).json({ error: 'Email already exists' });
@@ -29,6 +40,12 @@ router.post('/register', async (req, res) => {
     });
 
     await user.save();
+
+    // Check if JWT_SECRET is set
+    if (!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET is not set in environment variables');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
       expiresIn: '30d'
@@ -45,7 +62,20 @@ router.post('/register', async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Registration error:', error);
+    
+    // Handle MongoDB duplicate key error
+    if (error.code === 11000) {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(e => e.message);
+      return res.status(400).json({ error: errors.join(', ') });
+    }
+    
+    res.status(500).json({ error: error.message || 'Server error' });
   }
 });
 

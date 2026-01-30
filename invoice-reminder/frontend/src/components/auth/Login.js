@@ -11,11 +11,21 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(''); // Clear previous errors
     try {
       await login(email, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed');
+      // Handle different error types - prioritize error.message for network errors
+      const errorMessage = err.message || err.response?.data?.error || 'Login failed. Please check your credentials and try again.';
+      setError(errorMessage);
+      console.error('Login error:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        code: err.code,
+        config: { url: err.config?.url, baseURL: err.config?.baseURL }
+      });
     }
   };
 

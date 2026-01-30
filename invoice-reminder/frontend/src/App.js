@@ -7,6 +7,8 @@ import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import Dashboard from './pages/Dashboard';
 import CreateInvoice from './pages/CreateInvoice';
+import InvoiceDetail from './pages/InvoiceDetail';
+import SentEmails from './pages/SentEmails';
 import PaymentConfirm from './pages/PaymentConfirm';
 
 function App() {
@@ -21,6 +23,8 @@ function App() {
           <Route path="/pay/:token" element={<PaymentConfirm />} />
           <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="/create-invoice" element={<PrivateRoute><CreateInvoice /></PrivateRoute>} />
+          <Route path="/invoices/:id" element={<PrivateRoute><InvoiceDetail /></PrivateRoute>} />
+          <Route path="/sent-emails" element={<PrivateRoute><SentEmails /></PrivateRoute>} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
