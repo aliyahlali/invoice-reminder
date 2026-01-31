@@ -12,7 +12,7 @@ const sendEmail = async ({ to, subject, html }) => {
     }
 
     const result = await resend.emails.send({
-      from: "Invoice Reminder <onboarding@resend.dev>",
+      from: "Invoice Reminder <noreply@getauraapps.com>",
       to,
       subject,
       html,
