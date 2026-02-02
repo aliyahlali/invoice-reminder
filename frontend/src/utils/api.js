@@ -1,9 +1,20 @@
 import axios from 'axios';
 
+const VITE_API_URL = import.meta.env.VITE_API_URL;
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: VITE_API_URL || undefined,
   timeout: 10000 // 10 second timeout
 });
+
+// If VITE_API_URL is not set, reject requests early with a clear error
+api.interceptors.request.use(config => {
+  if (!VITE_API_URL) {
+    return Promise.reject(new Error('VITE_API_URL is not set. Please set VITE_API_URL to your backend URL in your Vercel environment variables.'));
+  }
+
+  return config;
+}, error => Promise.reject(error));
 
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
