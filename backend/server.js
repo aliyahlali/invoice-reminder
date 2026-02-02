@@ -40,7 +40,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Stripe webhook - MUST be before express.json()
-app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), require('./routes/stripe'));
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), require('./routes/Stripe'));
 
 // Request logging middleware (development only)
 if (process.env.NODE_ENV !== 'production') {
@@ -108,7 +108,7 @@ app.use('/api/auth', require('./routes/AuthRoute'));
 app.use('/api/invoices', require('./routes/InvoiceRoute'));
 app.use('/api/clients', require('./routes/ClientRoute'));
 app.use('/api/reminders', require('./routes/ReminderRoute'));
-app.use('/api/stripe', require('./routes/stripe'));
+app.use('/api/stripe', require('./routes/Stripe'));
 app.use('/api/test-email', require('./tests/emailRoutes'));
 
 // Health check
