@@ -14,7 +14,8 @@ const PaymentConfirm = () => {
 
   const loadInvoice = async () => {
     try {
-      const { data } = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5002/api'}/invoices/pay/${token}`);
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5002';
+      const { data } = await axios.get(`${apiBase}/api/invoices/pay/${token}`);
       setInvoice(data.invoice);
     } catch (err) {
       setError(err.response?.data?.error || 'Invalid payment link');
