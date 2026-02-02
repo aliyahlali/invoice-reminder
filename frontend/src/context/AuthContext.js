@@ -42,7 +42,15 @@ export const AuthProvider = ({ children }) => {
         throw new Error(networkError);
       }
       // Re-throw with more context for API errors
-      const errorMessage = error.response?.data?.error || error.message || 'Login failed';
+      const respErr = error.response?.data?.error;
+      let errorMessage;
+      if (typeof respErr === 'string') {
+        errorMessage = respErr;
+      } else if (respErr && typeof respErr === 'object') {
+        errorMessage = respErr.message || JSON.stringify(respErr);
+      } else {
+        errorMessage = error.message || 'Login failed';
+      }
       throw new Error(errorMessage);
     }
   };
@@ -59,7 +67,15 @@ export const AuthProvider = ({ children }) => {
         throw new Error(networkError);
       }
       // Re-throw with more context for API errors
-      const errorMessage = error.response?.data?.error || error.message || 'Registration failed';
+      const respErr = error.response?.data?.error;
+      let errorMessage;
+      if (typeof respErr === 'string') {
+        errorMessage = respErr;
+      } else if (respErr && typeof respErr === 'object') {
+        errorMessage = respErr.message || JSON.stringify(respErr);
+      } else {
+        errorMessage = error.message || 'Registration failed';
+      }
       throw new Error(errorMessage);
     }
   };
