@@ -1,7 +1,8 @@
 {
-  "name": "invoice-reminder-frontend",
+  "name": "invoice-reminder",
   "private": true,
   "version": "0.0.0",
+  "description": "A simple SaaS for freelancers and small businesses to get paid faster with automatic polite email reminders.",
   "type": "module",
   "scripts": {
     "dev": "vite",
