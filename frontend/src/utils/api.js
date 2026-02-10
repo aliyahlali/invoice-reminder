@@ -1,21 +1,20 @@
 import axios from 'axios';
 
 // Use environment variable for API URL, with appropriate defaults
-const getApiBaseUrl = () => {
+export const getApiBaseUrl = () => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
   
   // In production (deployed), construct the backend URL from current domain
   if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    // Replace 'frontend' or standard port with backend service URL
     const hostname = window.location.hostname;
-    // Assumes backend is at same domain or a specific backend URL
-    // Update this to match your actual backend URL on Render
+    // If frontend is on render, backend should be too
     if (hostname.includes('onrender.com')) {
-      // If frontend is on render, backend should be too
       return 'https://invoice-reminder-3.onrender.com'; 
     }
+    // For other production domains, try the same domain with /api prefix
+    return `https://${hostname}`;
   }
   
   // Default to localhost for development

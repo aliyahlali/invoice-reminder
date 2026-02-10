@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
+import { getApiBaseUrl } from '../utils/api';
 
 const PaymentConfirm = () => {
   const [invoice, setInvoice] = useState(null);
@@ -14,7 +15,7 @@ const PaymentConfirm = () => {
 
   const loadInvoice = async () => {
     try {
-      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5002';
+      const apiBase = getApiBaseUrl();
       const { data } = await axios.get(`${apiBase}/api/invoices/pay/${token}`);
       setInvoice(data.invoice);
     } catch (err) {
