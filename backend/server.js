@@ -7,29 +7,33 @@ const { startScheduler } = require('./jobs/EmailScheduler');
 
 const app = express();
 
-// CORS - Allow all origins in development for easier debugging
+// CORS - Allow configured frontend origins
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
+    // Build allowed origins list
     const allowedOrigins = [
-      process.env.FRONTEND_URL || 'http://localhost:5173',
+      process.env.FRONTEND_URL,
       'http://localhost:5173',
       'http://localhost:3000',
       'http://127.0.0.1:5173',
       'http://127.0.0.1:3000'
-    ];
+    ].filter(Boolean); // Remove undefined values
     
     // In development, allow all localhost origins
     if (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) {
       return callback(null, true);
     }
     
+    // Check if origin is allowed
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
-    } else {
+    } else if (process.env.NODE_ENV === 'production') {
       callback(new Error('Not allowed by CORS'));
+    } else {
+      callback(null, true);
     }
   },
   credentials: true,
