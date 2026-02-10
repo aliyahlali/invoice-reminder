@@ -10,7 +10,7 @@ const app = express();
 /* -------------------- CORS CONFIG -------------------- */
 
 const allowedOrigins = [
-  process.env.FRONTEND_URL,           // production frontend
+  process.env.FRONTEND_URL,
   'http://localhost:3000',
   'http://localhost:5173',
   'http://127.0.0.1:3000',
@@ -19,37 +19,37 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow server-to-server / curl / health checks
     if (!origin) return callback(null, true);
-
-    // Allow localhost in development
+    
     if (
       process.env.NODE_ENV !== 'production' &&
       origin.includes('localhost')
     ) {
       return callback(null, true);
     }
-
-    // Allow configured frontend
+    
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-
+    
     return callback(new Error(`CORS blocked: ${origin}`));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
 app.use(cors(corsOptions));
+
+/* -------------------- STRIPE WEBHOOK (BEFORE express.json!) -------------------- */
+// This MUST come before express.json() for Stripe signature verification
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), require('./routes/stripe'));
 
 /* -------------------- MIDDLEWARE -------------------- */
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Request logging (non-production)
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, _res, next) => {
     console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
@@ -67,7 +67,6 @@ const connectDB = async () => {
       throw new Error('MONGO_URI is not set');
     }
 
-    // Optional DB name override (case-sensitive Atlas fix)
     if (process.env.MONGO_DB_NAME) {
       const dbName = process.env.MONGO_DB_NAME;
       const match = mongoUri.match(/^(mongodb(\+srv)?:\/\/[^\/]+)(\/[^?]*)?(.*)$/);
@@ -85,13 +84,12 @@ const connectDB = async () => {
     console.log('✓ MongoDB connected');
     console.log(`✓ Database: ${mongoose.connection.name}`);
 
-    // Start scheduler ONLY after DB is ready
     startScheduler();
   } catch (err) {
     console.error('✗ MongoDB connection failed:', err.message);
 
     if (process.env.NODE_ENV !== 'production') {
-      process.exit(1); // fail fast locally
+      process.exit(1);
     }
 
     console.warn('⚠️  Server will continue running without DB (production)');
@@ -106,6 +104,7 @@ app.use('/api/auth', require('./routes/AuthRoute'));
 app.use('/api/invoices', require('./routes/InvoiceRoute'));
 app.use('/api/clients', require('./routes/ClientRoute'));
 app.use('/api/reminders', require('./routes/ReminderRoute'));
+app.use('/api/stripe', require('./routes/stripe')); // ← ADD THIS for other Stripe routes
 app.use('/api/test-email', require('./tests/emailRoutes'));
 
 /* -------------------- HEALTH CHECK -------------------- */
@@ -128,10 +127,7 @@ app.use((err, _req, res, _next) => {
   console.error('Server error:', err);
   res.status(500).json({
     error: 'Internal server error',
-    message:
-      process.env.NODE_ENV === 'development'
-        ? err.message
-        : undefined
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
 
