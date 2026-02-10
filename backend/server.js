@@ -20,18 +20,18 @@ const allowedOrigins = [
 const corsOptions = {
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    
+
     if (
       process.env.NODE_ENV !== 'production' &&
       origin.includes('localhost')
     ) {
       return callback(null, true);
     }
-    
+
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    
+
     return callback(new Error(`CORS blocked: ${origin}`));
   },
   credentials: true,
@@ -40,10 +40,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-/* -------------------- STRIPE WEBHOOK (BEFORE express.json!) -------------------- */
-// This MUST come before express.json() for Stripe signature verification
-app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), require('./routes/stripe'));
 
 /* -------------------- MIDDLEWARE -------------------- */
 
@@ -92,7 +88,7 @@ const connectDB = async () => {
       process.exit(1);
     }
 
-    console.warn('⚠️  Server will continue running without DB (production)');
+    console.warn('⚠️ Server running without DB connection (production)');
   }
 };
 
@@ -104,7 +100,6 @@ app.use('/api/auth', require('./routes/AuthRoute'));
 app.use('/api/invoices', require('./routes/InvoiceRoute'));
 app.use('/api/clients', require('./routes/ClientRoute'));
 app.use('/api/reminders', require('./routes/ReminderRoute'));
-app.use('/api/stripe', require('./routes/stripe')); // ← ADD THIS for other Stripe routes
 app.use('/api/test-email', require('./tests/emailRoutes'));
 
 /* -------------------- HEALTH CHECK -------------------- */
