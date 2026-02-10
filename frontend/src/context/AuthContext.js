@@ -83,6 +83,8 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
+    // Clear API authorization header
+    delete api.defaults.headers.common['Authorization'];
   };
 
   return (
