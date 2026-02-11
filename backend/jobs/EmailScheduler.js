@@ -264,9 +264,11 @@ function startScheduler() {
 
   console.log(`✓ Scheduler started (runs every 5 minutes on interval: ${SCHEDULER_CONFIG.checkInterval})`);
 
-  // For testing: run immediately on startup
-  console.log('Running initial reminder check...');
-  sendPendingReminders().catch(console.error);
+  // For testing: run immediately on startup (non-blocking)
+  console.log('Running initial reminder check (non-blocking)...');
+  setImmediate(() => {
+    sendPendingReminders().catch(console.error);
+  });
 
   return task;
 }
