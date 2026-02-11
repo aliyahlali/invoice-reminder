@@ -11,14 +11,14 @@ export const getApiBaseUrl = () => {
     const hostname = window.location.hostname;
     // If frontend is on render, backend should be too
     if (hostname.includes('onrender.com')) {
-      return 'https://invoice-reminder-3.onrender.com'; 
+      return 'https://invoice-reminder-3.onrender.com/api'; 
     }
     // For other production domains, try the same domain with /api prefix
-    return `https://${hostname}`;
+    return `https://${hostname}/api`;
   }
   
   // Default to localhost for development
-  return 'http://localhost:5002';
+  return 'http://localhost:5002/api';
 };
 
 const VITE_API_URL = getApiBaseUrl();
