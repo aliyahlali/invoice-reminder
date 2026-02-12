@@ -103,6 +103,7 @@ app.use('/api/auth', require('./routes/AuthRoute'));
 app.use('/api/invoices', require('./routes/InvoiceRoute'));
 app.use('/api/clients', require('./routes/ClientRoute'));
 app.use('/api/reminders', require('./routes/ReminderRoute'));
+app.use('/api/stripe', require('./routes/Stripe'));
 app.use('/api/test-email', require('./tests/emailRoutes'));
 
 /* -------------------- HEALTH CHECK -------------------- */
