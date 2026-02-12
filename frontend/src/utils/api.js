@@ -25,7 +25,7 @@ const VITE_API_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: VITE_API_URL,
-  timeout: 10000 // 10 second timeout
+  timeout: 10000 // 10a second timeout
 });
 
 api.interceptors.request.use(config => {
