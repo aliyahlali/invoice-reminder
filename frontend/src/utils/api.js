@@ -6,15 +6,10 @@ export const getApiBaseUrl = () => {
     return import.meta.env.VITE_API_URL;
   }
   
-  // In production (deployed), construct the backend URL from current domain
+  // In production (deployed), use the backend server
   if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    const hostname = window.location.hostname;
-    // If frontend is on render, backend should be too
-    if (hostname.includes('onrender.com')) {
-      return 'https://invoice-reminder-3.onrender.com/api'; 
-    }
-    // For other production domains, try the same domain with /api prefix
-    return `https://${hostname}/api`;
+    // Default to render backend for production
+    return 'https://invoice-reminder-3.onrender.com/api';
   }
   
   // Default to localhost for development
