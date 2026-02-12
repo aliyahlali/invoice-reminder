@@ -21,7 +21,7 @@ const CreateInvoice = () => {
     setError('');
 
     try {
-      await api.post('/invoices', {
+      await api.post('/api/invoices', {
         clientName,
         clientEmail,
         invoiceNumber,
