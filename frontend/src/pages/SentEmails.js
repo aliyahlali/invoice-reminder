@@ -22,7 +22,7 @@ const SentEmails = () => {
     try {
       setLoading(true);
       setError('');
-      const { data } = await api.get('/reminders/sent');
+      const { data } = await api.get('/api/reminders/sent');
       setTotalSent(data.totalSent ?? 0);
       setSent(data.sent ?? []);
     } catch (e) {
