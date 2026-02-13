@@ -24,7 +24,7 @@ const Dashboard = () => {
   const loadInvoices = async () => {
     try {
       const params = filter !== 'all' ? { status: filter } : {};
-      const { data } = await api.get('/invoices', { params });
+      const { data } = await api.get('/api/invoices', { params });
       setInvoices(data.invoices || []);
       setUnpaidCount(data.unpaidCount ?? 0);
       setPaidCount(data.paidCount ?? 0);

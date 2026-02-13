@@ -4,7 +4,7 @@ import api from '../utils/api';
 const UpgradeModal = ({ onClose }) => {
   const handleUpgrade = async () => {
     try {
-      const { data } = await api.post('/stripe/create-checkout');
+      const { data } = await api.post('/api/stripe/create-checkout');
       window.location.href = data.url;
     } catch (error) {
       alert('Failed to start checkout');

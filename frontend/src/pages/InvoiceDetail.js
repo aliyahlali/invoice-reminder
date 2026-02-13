@@ -20,7 +20,7 @@ const InvoiceDetail = () => {
     try {
       setLoading(true);
       setError('');
-      const { data } = await api.get(`/invoices/${id}`);
+      const { data } = await api.get(`/api/invoices/${id}`);
       setInvoice(data.invoice);
       setReminders(data.reminders || []);
       setNextReminder(data.nextReminder ?? null);
@@ -33,7 +33,7 @@ const InvoiceDetail = () => {
 
   const handleMarkPaid = async () => {
     try {
-      await api.patch(`/invoices/${id}/mark-paid`);
+      await api.patch(`/api/invoices/${id}/mark-paid`);
       navigate('/dashboard');
     } catch (e) {
       alert('Failed to mark as paid');

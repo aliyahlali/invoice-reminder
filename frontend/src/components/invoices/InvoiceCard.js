@@ -9,7 +9,7 @@ const InvoiceCard = ({ invoice, onUpdate }) => {
   const handleMarkPaid = async (e) => {
     e.preventDefault();
     try {
-      await api.patch(`/invoices/${invoice._id}/mark-paid`);
+      await api.patch(`/api/invoices/${invoice._id}/mark-paid`);
       onUpdate();
     } catch (error) {
       alert('Failed to mark as paid');
@@ -20,7 +20,7 @@ const InvoiceCard = ({ invoice, onUpdate }) => {
     e.preventDefault();
     if (!window.confirm('Delete this invoice?')) return;
     try {
-      await api.delete(`/invoices/${invoice._id}`);
+      await api.delete(`/api/invoices/${invoice._id}`);
       onUpdate();
     } catch (error) {
       alert('Failed to delete');
